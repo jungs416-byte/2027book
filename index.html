@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>집중배움 수강신청</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172b3a;background:#f4f7f6;--green:#116b51;--line:#d7e1dd;--yellow:#fff6c9}
+    *{box-sizing:border-box}body{margin:0}main{max-width:1060px;margin:auto;padding:24px 16px 52px}h1{margin:0 0 8px;font-size:clamp(1.55rem,4vw,2.2rem)}h2{font-size:1.15rem;margin:0 0 14px}p{line-height:1.55}.muted{color:#5c6b67}.card{background:white;border:1px solid var(--line);border-radius:16px;padding:20px;margin:16px 0;box-shadow:0 3px 15px #1d4b3c0d}.brand{color:var(--green);font-weight:750;letter-spacing:.04em}.banner{background:#e8f3ed;padding:14px 16px;border-radius:12px;margin:14px 0}.warn{background:#fff5d8;color:#644d05}.error{background:#ffe7e5;color:#801f17}.success{background:#e4f5e9;color:#175a2d}.hidden{display:none!important}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.field{flex:1 1 220px}label{display:block;font-weight:650;margin:8px 0 5px}input,select,button{font:inherit}input,select{width:100%;border:1px solid #bdcbc5;border-radius:9px;padding:11px;background:#fff;color:inherit}button{border:0;border-radius:9px;padding:11px 16px;background:var(--green);color:white;font-weight:700;cursor:pointer}button.secondary{background:#e7efeb;color:#234438}button:disabled{opacity:.55;cursor:wait}.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.pill{display:inline-block;border-radius:99px;background:#edf3ef;padding:5px 10px;font-size:.9rem}.days{display:grid;gap:16px}.day{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fcfdfc}.day h3{margin:0 0 3px}.period-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-top:14px}.period{border:1px solid var(--line);border-radius:10px;padding:10px;background:white}.period.reading{background:var(--yellow)}.period small{display:block;color:#60706b;margin-top:5px}.seat{font-size:.84rem;color:#52645d;margin-top:5px}.summary{display:flex;gap:8px;flex-wrap:wrap}.summary b{color:var(--green)}.fixed{border-left:4px solid #74877d;padding:10px 12px;background:#f0f3f1;border-radius:4px;font-size:.94rem}.hint{font-size:.9rem;color:#5b6a65}.inline{display:flex;align-items:center;gap:8px}.inline input{width:auto}.foot{font-size:.84rem;color:#65716d;margin-top:20px}#notice{white-space:pre-wrap}
+    @media(max-width:560px){main{padding:18px 12px 36px}.card{padding:16px}.toolbar{align-items:flex-start}}
+  </style>
+</head>
+<body><main>
+  <div class="brand">집중배움 · 2027</div>
+  <h1>수강신청 시간표</h1>
+  <p class="muted">이름과 학교 이메일로 본인 확인 후 신청하거나 기존 시간표를 수정할 수 있습니다.</p>
+  <div id="notice" class="banner hidden" role="status"></div>
+  <section id="setup" class="card hidden"><h2>연결 설정이 필요합니다</h2><p>Supabase 프로젝트를 만든 뒤 <code>config.example.json</code>을 <code>config.json</code>으로 복사하고 Project URL과 publishable key를 입력하세요. 미리보기는 주소 끝에 <code>?demo=1</code>을 붙여 확인할 수 있습니다.</p></section>
+  <section id="login" class="card hidden"><h2>학교 이메일 로그인</h2><p class="hint">이메일로 전송되는 확인 링크를 열면 로그인됩니다. 링크를 사용할 수 없는 환경에서는 인증번호 메일을 선택해 주세요.</p>
+    <div class="row"><div class="field"><label for="studentName">이름</label><input id="studentName" autocomplete="name" maxlength="100" placeholder="이름"></div><div class="field"><label for="studentEmail">학교 이메일</label><input id="studentEmail" type="email" autocomplete="email" maxlength="254" placeholder="name@school.edu"></div></div>
+    <div class="row" style="margin-top:12px"><button id="sendLink">로그인 링크 보내기</button><button id="sendCode" class="secondary">인증번호 보내기</button></div>
+    <div id="otpBox" class="hidden"><label for="otp">이메일 인증번호</label><div class="row"><div class="field"><input id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="이메일로 받은 6자리 번호"></div><button id="verifyOtp">확인</button></div></div>
+  </section>
+  <section id="app" class="hidden">
+    <div class="card toolbar"><div><strong id="who"></strong><div class="hint">저장된 신청을 불러왔습니다. 필요한 시간만 바꾸어 다시 저장하세요.</div></div><button id="signOut" class="secondary">로그아웃</button></div>
+    <div class="card"><h2>신청 현황</h2><div id="summary" class="summary"></div><p class="hint">각 교시에서 한 수업을 선택합니다. 영화는 두 교시를 사용하며, 성경읽기와 마네도 지정된 교실 좌석을 사용합니다.</p></div>
+    <div id="schedule" class="days"></div>
+    <div class="card"><div class="toolbar"><div><strong>저장 전 규칙 확인</strong><div class="hint">저장 시 좌석과 조건을 서버에서 다시 확인합니다.</div></div><button id="save">신청 저장</button></div><div id="validation" class="banner" style="margin-bottom:0">시간표를 불러오는 중입니다.</div></div>
+  </section>
+  <p class="foot">학교 이메일 확인은 Supabase 이메일 인증을 사용합니다. 제출한 시간표는 이 계정에서 다시 열어 수정할 수 있습니다.</p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const DAYS = [
+    {date:'2027-01-25',label:'1월 25일 월요일',week:1,periods:4,elective:true},
+    {date:'2027-01-26',label:'1월 26일 화요일',week:1,periods:4,elective:true},
+    {date:'2027-01-27',label:'1월 27일 수요일',week:1,periods:4,elective:true},
+    {date:'2027-01-28',label:'1월 28일 목요일',week:1,periods:4,elective:true},
+    {date:'2027-01-29',label:'1월 29일 금요일',week:1,periods:4,elective:false},
+    {date:'2027-02-01',label:'2월 1일 월요일',week:2,periods:3,elective:true},
+    {date:'2027-02-02',label:'2월 2일 화요일',week:2,periods:4,elective:false},
+    {date:'2027-02-04',label:'2월 4일 목요일',week:2,periods:3,elective:false}
+  ];
+  const ROOMS = ['6 현주반','6 현승반','소영반','7 소민반','7 은혜반'];
+  const COURSES = [
+    ['book_love','책 진짜 좋아','고현승'],['debate','책과 디베이트','정진우'],['music','책과 음악','이지현'],
+    ['minibook','미니북 만들기','김병철'],['sentence','책 속 한 문장 꾸미기','변영애'],['science','과학은 어려워도 과학책은 재밌어','이승재']
+  ];
+  const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let client=null, session=null, profileName='', offerings=[], chosen=new Map(), electiveChoice=new Map(), seatMap=new Map(), demoStore={};
+  const show=(id,on=true)=>$(id).classList.toggle('hidden',!on);
+  function message(text,kind=''){ $('notice').textContent=text; $('notice').className='banner '+kind; show('notice',true); }
+  function dayMap(){return new Map(DAYS.map(d=>[d.date,d]));}
+  function slotKey(date,period){return `${date}|${period}`;}
+  function isReading(o){return o.kind==='reading';}
+  function startChoices(d,p){return offerings.filter(o=>o.date===d.date&&o.period===p);}
+  function buildDays(){
+    const host=$('schedule');host.innerHTML='';
+    for(const d of DAYS){
+      const section=document.createElement('article');section.className='day';
+      let html=`<h3>${esc(d.label)}</h3><div class="hint">${d.week}주차 · ${d.periods}개 신청 교시</div><div class="period-grid">`;
+      for(let p=1;p<=d.periods;p++){
+        const key=slotKey(d.date,p), selected=chosen.get(key)||'';
+        html+=`<div class="period" id="box-${d.date}-${p}"><label for="slot-${d.date}-${p}">${p}교시</label><select id="slot-${d.date}-${p}" data-date="${d.date}" data-period="${p}"><option value="">선택 안 함</option>`;
+        for(const o of startChoices(d,p)){
+          const label=o.kind==='reading'?`책읽기 · ${esc(o.room)}`:o.kind==='bible'?`성경읽기 · ${esc(o.room)}`:o.kind==='mane'?`마네 · ${esc(o.room)}`:o.kind==='movie'?'영화 (2교시)':'';
+          if(label) html+=`<option value="${o.id}" ${o.id===selected?'selected':''}>${label}</option>`;
+        }
+        html+='</select><div class="seat" data-seat-for="'+esc(key)+'"></div></div>';
+      }
+      if(d.elective) html+=`<div class="period"><label>선택수업</label><div class="hint">${d.date==='2027-02-01'?'4':'5'}교시</div><select class="elective" data-date="${d.date}"><option value="">과목 선택</option>${COURSES.map(c=>`<option value="${c[0]}" ${electiveChoice.get(d.date)===c[0]?'selected':''}>${esc(c[1])} (${esc(c[2])})</option>`).join('')}</select></div>`;
+      html+='</div>';
+      section.innerHTML=html;host.append(section);
+    }
+    const fixed=document.createElement('div');fixed.className='fixed';fixed.innerHTML='<strong>고정 일정:</strong> 2027년 2월 3일(수) · 수강 신청 없음 &nbsp; | &nbsp; 2027년 2월 5일(금) · 신청 범위에서 제외';host.append(fixed);
+    host.querySelectorAll('select[data-date]').forEach(el=>el.addEventListener('change',()=>{
+      const d=el.dataset.date,p=Number(el.dataset.period),o=offerings.find(x=>x.id===el.value);
+      if(o?.kind==='movie'){
+        const next=host.querySelector(`[data-date="${d}"][data-period="${p+1}"]`);
+        if(next){chosen.set(slotKey(d,p+1),'');next.value='';}
+      }
+      chosen.set(slotKey(d,p),el.value);renderSeatHints();updateValidation();
+    }));
+    host.querySelectorAll('.elective').forEach(el=>el.addEventListener('change',()=>{electiveChoice.set(el.dataset.date,el.value);updateValidation();}));
+    renderSeatHints();
+  }
+  function renderElectives(){}
+  function pickedRows(){return [...chosen.entries()].filter(([,id])=>id).map(([key,id])=>({key,id,offering:offerings.find(o=>o.id===id)})).filter(x=>x.offering);}
+  function validate(){
+    const rows=pickedRows(), read=rows.filter(x=>isReading(x.offering));
+    const readByDay=new Map(DAYS.map(d=>[d.date,0]));read.forEach(x=>readByDay.set(x.offering.date,(readByDay.get(x.offering.date)||0)+1));
+    const issues=[];
+    for(const d of DAYS)if((readByDay.get(d.date)||0)<1)issues.push(`${d.label}: 책읽기 1시간 이상 필요`);
+    if(read.length<14)issues.push(`책읽기 ${read.length}/14시간`);
+    if(read.filter(x=>x.offering.course_key==='soyoung').length>6)issues.push('소영반은 전체 6회까지 신청 가능');
+    const movies=rows.filter(x=>x.offering.kind==='movie');
+    if(movies.some((x,i)=>movies.some((y,j)=>i!==j&&x.offering.date===y.offering.date)))issues.push('영화는 하루 한 번까지');
+    if(movies.filter(x=>dayMap().get(x.offering.date)?.week===1).length>2)issues.push('첫째 주 영화는 2편까지');
+    if(movies.filter(x=>dayMap().get(x.offering.date)?.week===2).length>1)issues.push('둘째 주 영화는 1편까지');
+    const mane=rows.filter(x=>x.offering.kind==='mane');if(mane.length>4)issues.push('마네는 전체 4회까지');
+    const el=[...electiveChoice.values()].filter(Boolean);
+    if(el.length!==5)issues.push(`선택수업 ${el.length}/5개 선택`);
+    if(new Set(el).size!==el.length)issues.push('선택수업은 서로 다른 과목이어야 합니다');
+    const overlaps=[];
+    for(const r of rows){const o=r.offering;for(let n=0;n<(o.span_periods||1);n++)overlaps.push(`${o.date}|${o.period+n}`);}
+    if(new Set(overlaps).size!==overlaps.length)issues.push('같은 교시에 두 수업을 선택할 수 없습니다');
+    const full=rows.filter(x=>x.offering.capacity!==null&&x.offering.capacity!==undefined&&Number(seatMap.get(x.id)?.remaining??x.offering.capacity)<=0);
+    if(full.length)issues.push('정원이 마감된 수업이 포함되어 있습니다');
+    return {issues,read:read.length,movies:movies.length,mane:mane.length};
+  }
+  function updateValidation(){
+    const v=validate();$('summary').innerHTML=`<span class="pill">독서 <b>${v.read}/14시간</b></span><span class="pill">영화 <b>${v.movies}회</b></span><span class="pill">마네 <b>${v.mane}/4회</b></span><span class="pill">선택수업 <b>${[...electiveChoice.values()].filter(Boolean).length}/5개</b></span>`;
+    $('validation').className='banner '+(v.issues.length?'warn':'success');$('validation').textContent=v.issues.length?v.issues.join('\n'):'모든 신청 규칙을 충족했습니다. 저장할 수 있습니다.';
+    $('save').disabled=!!v.issues.length;
+  }
+  function renderSeatHints(){document.querySelectorAll('[data-seat-for]').forEach(el=>{const id=chosen.get(el.dataset.seatFor);const o=offerings.find(x=>x.id===id);if(!o||o.capacity==null){el.textContent='';return;}const s=seatMap.get(id);el.textContent=s?`남은 좌석 ${s.remaining}/${s.capacity}`:`정원 ${o.capacity}석`;});updateValidation();}
+  async function loadSchedule(){
+    if(DEMO){loadDemoSchedule();return;}
+    const [{data:off,error:oe},{data:mine,error:me},{data:seats,error:se}]=await Promise.all([
+      client.from('offerings').select('id,date,period,kind,course_key,room,capacity,span_periods').order('date').order('period'),
+      client.rpc('get_my_schedule'),client.rpc('get_remaining_seats')
+    ]);
+    if(oe||me||se)throw new Error(oe?.message||me?.message||se?.message||'시간표를 불러오지 못했습니다.');
+    offerings=(off||[]).map(x=>({...x,date:String(x.date).slice(0,10)}));
+    chosen.clear();electiveChoice.clear();
+    for(const row of mine||[]){if(row.kind==='elective')electiveChoice.set(row.date,row.course_key);else chosen.set(slotKey(row.date,row.period),row.id);}
+    seatMap=new Map((seats||[]).map(s=>[s.id,s]));
+    buildDays();renderElectives();updateValidation();
+  }
+  async function refreshSeats(){
+    if(DEMO||!client||!session)return;
+    const {data,error}=await client.rpc('get_remaining_seats');
+    if(error){console.warn('좌석 현황을 새로고침하지 못했습니다.',error.message);return;}
+    seatMap=new Map((data||[]).map(s=>[s.id,s]));renderSeatHints();
+  }
+  function makeDemoOfferings(){
+    const out=[];let i=1;const add=(date,period,kind,key,room=null,capacity=null,span=1)=>out.push({id:`demo-${i++}`,date,period,kind,course_key:key,room,capacity,span_periods:span});
+    for(const d of DAYS){for(let p=1;p<=d.periods;p++){for(let r=0;r<ROOMS.length;r++)add(d.date,p,'reading',r===2?'soyoung':`room_${r}`,ROOMS[r],[10,10,20,10,10][r]);if(p<=2){add(d.date,p,'bible','bible_yunju','9 윤주반',10);add(d.date,p,'bible','bible_gwang','9 광반',10);}if(p>=3)add(d.date,p,'mane','mane','마리오네뜨',14);if(p===1)add(d.date,p,'movie','movie_1_2',null,40,2);if(p===3&&d.week===1)add(d.date,p,'movie','movie_3_4',null,40,2);}}
+    for(const d of DAYS.filter(x=>x.elective))for(const c of COURSES)add(d.date,d.date==='2027-02-01'?4:5,'elective',c[0],null,null,1);
+    return out;
+  }
+  function loadDemoSchedule(){
+    offerings=makeDemoOfferings();seatMap=new Map(offerings.filter(o=>o.capacity!=null).map(o=>[o.id,{id:o.id,capacity:o.capacity,remaining:o.capacity}]));
+    const saved=JSON.parse(localStorage.getItem('focus-demo-schedule')||'{}');chosen=new Map(Object.entries(saved.chosen||{}));electiveChoice=new Map(Object.entries(saved.elective||{}));
+    buildDays();renderElectives();updateValidation();
+  }
+  async function sendAuth(mode){
+    const name=$('studentName').value.trim(),email=$('studentEmail').value.trim().toLowerCase();
+    if(!name||!email){message('이름과 학교 이메일을 입력해 주세요.','warn');return;}
+    profileName=name;
+    if(DEMO){session={user:{email}};onLogin();message('미리보기 모드입니다. 데이터는 이 브라우저에만 저장됩니다.','warn');return;}
+    const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.href,data:{full_name:name},shouldCreateUser:true}});
+    if(error){message(error.message,'error');return;}
+    if(mode==='otp')show('otpBox');message('이메일을 확인해 로그인 링크 또는 인증번호를 사용해 주세요.','success');
+  }
+  async function onLogin(){
+    show('login',false);show('setup',false);show('app',true);$('who').textContent=`${profileName||session?.user?.user_metadata?.full_name||''} · ${session?.user?.email||''}`;
+    try{
+      if(!DEMO){const {error}=await client.rpc('set_my_profile',{p_full_name:profileName||session.user.user_metadata?.full_name||''});if(error)throw error;}
+      await loadSchedule();
+    }catch(e){message(`시간표를 불러오지 못했습니다: ${e.message||e}`,'error');}
+  }
+  async function save(){
+    const v=validate();if(v.issues.length)return;
+    const btn=$('save');btn.disabled=true;btn.textContent='저장 중…';
+    try{
+      if(DEMO){localStorage.setItem('focus-demo-schedule',JSON.stringify({chosen:Object.fromEntries(chosen),elective:Object.fromEntries(electiveChoice)}));message('미리보기 신청을 저장했습니다.','success');}
+      else{
+        const ids=pickedRows().map(x=>x.id);for(const [date,key] of electiveChoice){const o=offerings.find(x=>x.date===date&&x.kind==='elective'&&x.course_key===key);if(o)ids.push(o.id);}
+        const {error}=await client.rpc('save_my_schedule',{p_offering_ids:ids});if(error)throw error;
+        message('신청을 저장했습니다. 다시 로그인해도 이 시간표를 불러올 수 있습니다.','success');await loadSchedule();
+      }
+    }catch(e){message(`저장하지 못했습니다: ${e.message||e}`,'error');if(!DEMO)await loadSchedule().catch(()=>{});}
+    finally{btn.textContent='신청 저장';updateValidation();}
+  }
+  async function signOut(){if(DEMO){session=null;show('app',false);show('login',true);return;}await client.auth.signOut();session=null;show('app',false);show('login',true);}
+  async function init(){
+    if(DEMO){show('login');message('미리보기 모드: 이메일 인증과 실제 좌석 공유는 연결되지 않습니다.','warn');return;}
+    let config={};try{config=await (await fetch('./config.json',{cache:'no-store'})).json();}catch{}
+    const publicKey=config.publishableKey||config.anonKey;
+    if(!config.url||!publicKey){show('setup');return;}
+    client=window.supabase.createClient(config.url,publicKey);
+    const {data:{session:s}}=await client.auth.getSession();session=s;
+    client.auth.onAuthStateChange((_event,next)=>{session=next;if(next)onLogin();});
+    if(session){profileName=session.user.user_metadata?.full_name||'';onLogin();}else show('login');
+    window.setInterval(()=>{if(session&&!DEMO)refreshSeats();},15000);
+  }
+  $('sendLink').addEventListener('click',()=>sendAuth('link'));$('sendCode').addEventListener('click',()=>sendAuth('otp'));
+  $('verifyOtp').addEventListener('click',async()=>{const {data,error}=await client.auth.verifyOtp({email:$('studentEmail').value.trim().toLowerCase(),token:$('otp').value.trim(),type:'email'});if(error)message(error.message,'error');else{session=data.session;onLogin();}});
+  $('save').addEventListener('click',save);$('signOut').addEventListener('click',signOut);init();
+})();
+</script></body></html>
